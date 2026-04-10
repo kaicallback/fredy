@@ -48,21 +48,28 @@ similarityCache.startSimilarityCacheReloader();
 //assuming interval is always in minutes
 const INTERVAL = settings.interval * 60 * 1000;
 
-// Initialize API only after migrations completed
-await import('./lib/api/api.js');
+if (process.env.WORKER_MODE === 'true') {
+  logger.info('Running in worker mode — skipping API, crons, and user setup');
 
-if (settings.demoMode) {
-  logger.info('Running in demo mode');
+  // Initialize only the job execution service for automated search interval
+  initJobExecutionService({ providers, settings, intervalMs: INTERVAL });
+} else {
+  // Initialize API only after migrations completed
+  await import('./lib/api/api.js');
+
+  if (settings.demoMode) {
+    logger.info('Running in demo mode');
+  }
+
+  ensureAdminUserExists();
+  ensureDemoUserExists();
+  await initTrackerCron();
+  //do not wait for this to finish, let it run in the background
+  initActiveCheckerCron();
+  initGeocodingCron();
+
+  logger.info(`Started Fredy successfully. Ui can be accessed via http://localhost:${settings.port}`);
+
+  // Initialize the lean Job Execution Service (schedules and bus listeners)
+  initJobExecutionService({ providers, settings, intervalMs: INTERVAL });
 }
-
-ensureAdminUserExists();
-ensureDemoUserExists();
-await initTrackerCron();
-//do not wait for this to finish, let it run in the background
-initActiveCheckerCron();
-initGeocodingCron();
-
-logger.info(`Started Fredy successfully. Ui can be accessed via http://localhost:${settings.port}`);
-
-// Initialize the lean Job Execution Service (schedules and bus listeners)
-initJobExecutionService({ providers, settings, intervalMs: INTERVAL });
